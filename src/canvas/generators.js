@@ -1219,7 +1219,92 @@ async function generateGuildCard(guild, members) {
   return canvas.toBuffer('image/png');
 }
 
+// ──────────────────────────────────────────────────────────────
+//  КАРТОЧКА МЕНЮ
+// ──────────────────────────────────────────────────────────────
+async function generateMenuCard(p) {
+  const W=520, H=200, canvas=createCanvas(W,H), ctx=canvas.getContext('2d');
+  const cls=CLASSES[p.class]||CLASSES['Воин'], accent=cls.accent;
+  cardBase(ctx,W,H,'#0d0d0d',cls.bg,accent);
+
+  // Декоративный светящийся круг справа
+  const glow=ctx.createRadialGradient(W-60,H/2,10,W-60,H/2,160);
+  glow.addColorStop(0,accent+'22'); glow.addColorStop(1,'transparent');
+  ctx.fillStyle=glow; ctx.fillRect(0,0,W,H);
+
+  // Логотип сверху справа
+  ctx.fillStyle=accent+'88'; ctx.font='bold 11px sans-serif'; ctx.textAlign='right';
+  ctx.fillText('ФЕНИКС RPG', W-18, 20);
+
+  // Аватар слева
+  const AX=78, AY=H/2, AR=58;
+  try {
+    const img=await fetchAvatarCached(p.name+p.class+(p.race||''));
+    drawAvatar(ctx,img,AX,AY,AR,accent);
+  } catch {}
+
+  // Бейдж уровня под аватаром
+  const lvlG=ctx.createLinearGradient(AX-22,AY+AR-8,AX+22,AY+AR+14);
+  lvlG.addColorStop(0,accent); lvlG.addColorStop(1,accent+'aa');
+  ctx.fillStyle=lvlG; roundRect(ctx,AX-22,AY+AR-8,44,22,11); ctx.fill();
+  ctx.fillStyle='#000'; ctx.font='bold 12px sans-serif'; ctx.textAlign='center';
+  ctx.fillText(`УР.${p.level}`,AX,AY+AR+7);
+
+  // Разделитель
+  const sep=ctx.createLinearGradient(0,20,0,H-20);
+  sep.addColorStop(0,'transparent'); sep.addColorStop(0.5,accent+'60'); sep.addColorStop(1,'transparent');
+  ctx.strokeStyle=sep; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(152,18); ctx.lineTo(152,H-18); ctx.stroke();
+
+  // Правая часть
+  const RX=168;
+
+  // Имя
+  ctx.fillStyle='#ffffff'; ctx.font='bold 24px sans-serif'; ctx.textAlign='left';
+  ctx.fillText(p.name, RX, 46);
+
+  // Теги: класс + локация
+  const loc=LOCATIONS[p.location||'Лес']||LOCATIONS['Лес'];
+  const tags=[{t:`${cls.emoji} ${p.class}`,c:accent},{t:`${loc.emoji} ${p.location||'Лес'}`,c:'#aaa'}];
+  let tx=RX;
+  for (const tag of tags) {
+    ctx.font='bold 11px sans-serif';
+    const tw=ctx.measureText(tag.t).width+14;
+    ctx.fillStyle=tag.c+'28'; roundRect(ctx,tx,52,tw,18,5); ctx.fill();
+    ctx.fillStyle=tag.c; ctx.fillText(tag.t,tx+7,64); tx+=tw+7;
+  }
+
+  // HP бар
+  const BW=W-RX-20;
+  drawBar(ctx,RX,82,BW,p.hp,p.max_hp,'#e74c3c','HP','hp');
+
+  // Мана бар
+  drawBar(ctx,RX,114,BW,p.mana,p.max_mana,'#3498db','МАНА','mana');
+
+  // Нижний ряд: ATK / DEF / Золото
+  const stats=[
+    {icon:'atk', label:'АТАКА',  val:p.attack},
+    {icon:'def', label:'ЗАЩИТА', val:p.defense},
+    {icon:'gold',label:'ЗОЛОТО', val:p.gold+(p.card_gold||0)},
+  ];
+  const SW=(BW)/stats.length;
+  stats.forEach((s,i) => {
+    const sx=RX+i*SW, cx=sx+SW/2-3;
+    ctx.fillStyle='#ffffff0d'; roundRect(ctx,sx+2,148,SW-8,40,7); ctx.fill();
+    ctx.strokeStyle=accent+'22'; ctx.lineWidth=1; roundRect(ctx,sx+2,148,SW-8,40,7); ctx.stroke();
+    drawIcon(ctx,s.icon,cx,159,9);
+    ctx.fillStyle=accent; ctx.font='bold 15px sans-serif'; ctx.textAlign='center';
+    ctx.fillText(String(s.val),cx,176);
+    ctx.fillStyle='#555'; ctx.font='10px sans-serif';
+    ctx.fillText(s.label,cx,188);
+  });
+
+  ctx.textAlign='left';
+  return canvas.toBuffer('image/png');
+}
+
 module.exports = {
+  generateMenuCard,
   generateBankCard,
   generateProfileCard,
   generateBattleCard,

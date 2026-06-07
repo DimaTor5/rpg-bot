@@ -14,7 +14,7 @@ const {
   getUpgradeLevel, setUpgradeLevel, takeSnapshot,
 } = require('../db/queries');
 const {
-  generateBankCard, generateProfileCard, generateBattleCard, generateResultCard,
+  generateMenuCard, generateBankCard, generateProfileCard, generateBattleCard, generateResultCard,
   generateShopCard, generateFleeCard, generateRestCard, generateDailyCard,
   generateQuestCard, generateInventoryCard, generateTopCard, generateAchievementsCard,
   generateLocationCard, generateCasinoCard, generateHelpCard, generateMarketCard,
@@ -726,11 +726,20 @@ async function handleCmd(interaction) {
         new ButtonBuilder().setCustomId('menu_help').setLabel('❓ Помощь').setStyle(ButtonStyle.Secondary),
       ),
     ];
-    const embed=new EmbedBuilder().setColor(cls.color)
-      .setTitle(`${cls.emoji}  ${p.name} · Ур.${p.level}`)
-      .setDescription(`💰 \`${p.gold}\`🪙  •  ❤️ \`${p.hp}/${p.max_hp}\`  •  📍 ${p.location||'Лес'}\n\nВыбери действие:`)
-      .setFooter({text:'Феникс RPG'}).setTimestamp();
-    return interaction.reply({embeds:[embed], components:rows, ephemeral:true});
+    await interaction.deferReply({ ephemeral: true });
+    try {
+      const buf=await generateMenuCard(p), att=new AttachmentBuilder(buf,{name:'menu.png'});
+      return interaction.editReply({
+        embeds:[new EmbedBuilder().setColor(parseInt(cls.color.replace('#',''),16)).setImage('attachment://menu.png').setTimestamp()],
+        files:[att], components:rows
+      });
+    } catch {
+      const embed=new EmbedBuilder().setColor(parseInt(cls.color.replace('#',''),16))
+        .setTitle(`${cls.emoji}  ${p.name} · Ур.${p.level}`)
+        .setDescription(`💰 \`${p.gold}\`🪙  •  ❤️ \`${p.hp}/${p.max_hp}\`  •  📍 ${p.location||'Лес'}\n\nВыбери действие:`)
+        .setFooter({text:'Феникс RPG'}).setTimestamp();
+      return interaction.editReply({embeds:[embed], components:rows});
+    }
   }
 
   // ── /help ──
