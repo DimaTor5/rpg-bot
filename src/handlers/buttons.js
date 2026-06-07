@@ -5,6 +5,7 @@ const {
 } = require('discord.js');
 const {
   CLASSES, SHOP_ITEMS, CARD_SHOP_ITEMS, CARD_TIERS, PROFESSIONS, PETS, RANDOM_EVENTS,
+  MONSTERS, LOCATIONS, QUESTS_LIST, EXPLORE_EVENTS, ACHIEVEMENTS_LIST,
   rand, getCardBonuses, getSeasonalEvent,
 } = require('../data/constants');
 const {
@@ -14,9 +15,12 @@ const {
 const {
   generateBattleCard, generateResultCard, generateRestCard, generateInventoryCard,
   generateUpgradeCard, generateProfessionCard, generatePetShopCard, generateMarketCard,
+  generateProfileCard, generateShopCard, generateDailyCard, generateQuestCard,
+  generateAchievementsCard, generateExploreCard, generateHelpCard, generateStatsCard,
 } = require('../canvas/generators');
 const {
   battles, pvpBattles, pendingDuels, pendingTrades, processingInteractions,
+  fightCooldowns, FIGHT_COOLDOWN_MS,
 } = require('../state');
 const { battleEmbed, divider, autoDelete } = require('./commands');
 
@@ -313,6 +317,196 @@ async function handleBtn(interaction) {
       .setDescription(log.map(l=>`> ${l}`).join('\n')+`\n\`${divider}\`\n> Ход **${def.name}** — атакуй!`)
       .addFields({name:`${cls1.emoji} ${att.name}`,value:`❤️ \`${att.hp}/${att.max_hp}\``,inline:true},{name:`${cls2.emoji} ${def.name}`,value:`❤️ \`${def.hp}/${def.max_hp}\``,inline:true})
       .setTimestamp()],components:[pvpRow]});
+  }
+
+  // ── /menu кнопки ──
+  if (customId.startsWith('menu_')) {
+    const action = customId.replace('menu_', '');
+
+    if (action === 'fight') {
+      if (p.hp <= 0) return interaction.update({ content: '💀 HP = 0! Используй **/rest**.', embeds: [], components: [] });
+      if (battles.has(user.id)) return interaction.update({ content: '⚔️ Ты уже в бою!', embeds: [], components: [] });
+      const lastFight = fightCooldowns.get(user.id) || 0;
+      const remaining = Math.ceil((FIGHT_COOLDOWN_MS - (Date.now() - lastFight)) / 1000);
+      if (remaining > 0) return interaction.update({ content: `⏳ Подожди ещё **${remaining} сек.** перед следующим боем.`, embeds: [], components: [] });
+      fightCooldowns.set(user.id, Date.now());
+      const loc = LOCATIONS[p.location || 'Лес'] || LOCATIONS['Лес'];
+      const mName = loc.monsters[rand(0, loc.monsters.length - 1)];
+      const mDef = MONSTERS[mName];
+      const scale = 1 + (p.level - 1) * 0.15;
+      const isElite = rand(1, 100) <= 20;
+      const eScale = isElite ? scale * 1.5 : scale;
+      const monster = { ...mDef, name: (isElite ? 'Элитный ' : '') + mName,
+        hp: Math.round(mDef.hp * eScale), atk: Math.round(mDef.atk * eScale),
+        def: Math.round(mDef.def * eScale), xp: Math.round(mDef.xp * eScale),
+        gold: [Math.round(mDef.gold[0] * eScale), Math.round(mDef.gold[1] * eScale)],
+        curHp: Math.round(mDef.hp * eScale), isElite, ability: mDef.ability,
+        healedOnce: false, burnApplied: false };
+      const cb = getCardBonuses(p);
+      if (cb.hpBonus > 0) p.hp = Math.min(p.hp + Math.floor(p.max_hp * cb.hpBonus), Math.floor(p.max_hp * (1 + cb.hpBonus)));
+      battles.set(user.id, { monster, turn: 1, startedAt: Date.now(), burnTurns: 0, burnDmg: 0, debuffAtk: 0, debuffTurns: 0, freezeTurns: 0, freezeAtkDebuff: 0, freezeDefDebuff: 0 });
+      await interaction.deferUpdate();
+      const fR = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('fight_attack').setLabel('⚔️ Атака').setStyle(ButtonStyle.Danger),
+        new ButtonBuilder().setCustomId('fight_magic').setLabel('🔮 Магия').setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId('fight_inventory').setLabel('🎒 Инвентарь').setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId('fight_flee').setLabel('🏃 Бежать').setStyle(ButtonStyle.Secondary),
+      );
+      try {
+        const buf = await generateBattleCard(p, battles.get(user.id)), att = new AttachmentBuilder(buf, { name: 'battle.png' });
+        return interaction.editReply({ embeds: [battleEmbed(p, battles.get(user.id)).setImage('attachment://battle.png')], files: [att], components: [fR] });
+      } catch { return interaction.editReply({ embeds: [battleEmbed(p, battles.get(user.id))], components: [fR] }); }
+    }
+
+    if (action === 'profile') {
+      await interaction.deferUpdate();
+      try {
+        const buf = await generateProfileCard(p), att = new AttachmentBuilder(buf, { name: 'profile.png' });
+        const cls = CLASSES[p.class] || CLASSES['Воин'];
+        return interaction.editReply({ embeds: [new EmbedBuilder().setColor(parseInt(cls.color.replace('#',''),16)).setTitle(`${cls.emoji} ${p.name} · Ур.${p.level}`).setImage('attachment://profile.png').setTimestamp()], files: [att], components: [] });
+      } catch { return interaction.editReply({ content: `${p.class} · Ур.${p.level} · ${p.gold}🪙`, embeds: [], components: [] }); }
+    }
+
+    if (action === 'shop') {
+      const bonuses = getCardBonuses(p), disc = bonuses.shopDiscount || 0;
+      const mkGear = i => new ButtonBuilder().setCustomId(`buy_${i.name}`).setLabel(`${i.emoji} ${i.name} — ${Math.floor(i.price*(1-disc))}🪙`).setStyle(ButtonStyle.Primary);
+      const mkCard = c => new ButtonBuilder().setCustomId(`buycard_${c.tierId}`).setLabel(`${c.emoji} ${c.name} ${c.price>=1000?Math.round(c.price/1000)+'k':c.price}🪙`).setStyle(ButtonStyle.Success);
+      await interaction.deferUpdate();
+      try {
+        const buf = await generateShopCard(p.gold, disc), att = new AttachmentBuilder(buf, { name: 'shop.png' });
+        return interaction.editReply({ embeds: [new EmbedBuilder().setColor(0xF39C12).setTitle('🏪 Магазин').setImage('attachment://shop.png').setFooter({text:'⚔️ Снаряжение · 💳 Карты'}).setTimestamp()], files: [att], components: [new ActionRowBuilder().addComponents(SHOP_ITEMS.slice(0,4).map(mkGear)), new ActionRowBuilder().addComponents(SHOP_ITEMS.slice(4).map(mkGear)), new ActionRowBuilder().addComponents(CARD_SHOP_ITEMS.slice(0,4).map(mkCard)), new ActionRowBuilder().addComponents(CARD_SHOP_ITEMS.slice(4).map(mkCard))] });
+      } catch { return interaction.editReply({ content: 'Магазин временно недоступен.', embeds: [], components: [] }); }
+    }
+
+    if (action === 'inventory') {
+      const items = getInventory(user.id);
+      await interaction.deferUpdate();
+      try {
+        const buf = await generateInventoryCard(items, p), att = new AttachmentBuilder(buf, { name: 'inv.png' });
+        return interaction.editReply({ embeds: [new EmbedBuilder().setColor(0x8E44AD).setTitle('🎒 Инвентарь').setImage('attachment://inv.png').setTimestamp()], files: [att], components: [] });
+      } catch { return interaction.editReply({ content: items.length ? items.map(i=>`${i.item} x${i.qty}`).join('\n') : '🎒 Пусто.', embeds: [], components: [] }); }
+    }
+
+    if (action === 'quest') {
+      let q = db.prepare('SELECT * FROM quests WHERE player_id=?').get(user.id);
+      if (!q) {
+        const qDef = QUESTS_LIST[rand(0, QUESTS_LIST.length - 1)];
+        db.prepare('INSERT INTO quests (player_id,quest,progress,goal,reward_xp,reward_gold) VALUES (?,?,0,?,?,?)').run(user.id, qDef.name, qDef.goal, qDef.xp, qDef.gold);
+        q = db.prepare('SELECT * FROM quests WHERE player_id=?').get(user.id);
+      }
+      const quest = QUESTS_LIST.find(x => x.name === q.quest) || QUESTS_LIST[0];
+      const done = q.progress >= q.goal;
+      if (done) {
+        p.xp += q.reward_xp; p.gold += q.reward_gold; p.quests_done = (p.quests_done||0) + 1;
+        checkLevelUp(p); savePlayer(p);
+        db.prepare('DELETE FROM quests WHERE player_id=?').run(user.id);
+        const { goldEarned: achG } = checkAchievements(p); if (achG > 0) savePlayer(p);
+      }
+      await interaction.deferUpdate();
+      try {
+        const buf = await generateQuestCard(q, quest, done), att = new AttachmentBuilder(buf, { name: 'quest.png' });
+        return interaction.editReply({ embeds: [new EmbedBuilder().setColor(done?0xF1C40F:0x1ABC9C).setTitle(done?'✅ Квест выполнен!':'📜 Активный квест').setImage('attachment://quest.png').setTimestamp()], files: [att], components: [] });
+      } catch { return interaction.editReply({ content: done?`✅ Квест выполнен! +${q.reward_xp}XP +${q.reward_gold}🪙`:`📜 **${q.quest}** — ${q.progress}/${q.goal}`, embeds: [], components: [] }); }
+    }
+
+    if (action === 'daily') {
+      const today = new Date().toDateString();
+      if (p.last_daily === today) return interaction.update({ content: '⏰ Уже получил сегодня. Приходи завтра!', embeds: [], components: [] });
+      const bonuses = getCardBonuses(p), season = getSeasonalEvent();
+      const profD = PROFESSIONS[p.profession||''] || null;
+      const baseGold = rand(30,80), baseXp = rand(20,50);
+      let dailyMult = bonuses.dailyMult;
+      if (profD?.xpBonus) dailyMult = Math.max(dailyMult, 1 + profD.xpBonus);
+      if (season?.bonus === 'gold') dailyMult *= season.mult;
+      const gold = Math.floor(baseGold * dailyMult), xp = Math.floor(baseXp * (season?.bonus==='xp' ? season.mult : 1));
+      p.gold += gold; p.xp += xp; p.last_daily = today; p.gold_earned = (p.gold_earned||0) + gold;
+      const lvl = checkLevelUp(p); savePlayer(p);
+      const { goldEarned: achG } = checkAchievements(p); if (achG > 0) savePlayer(p);
+      await interaction.deferUpdate();
+      try {
+        const buf = await generateDailyCard(p, gold, xp, lvl[0]||null), att = new AttachmentBuilder(buf, { name: 'daily.png' });
+        return interaction.editReply({ embeds: [new EmbedBuilder().setColor(0xF1C40F).setTitle('🎁 Ежедневная награда!').setImage('attachment://daily.png').setTimestamp()], files: [att], components: [] });
+      } catch { return interaction.editReply({ content: `🎁 +${gold}🪙 +${xp}XP!`, embeds: [], components: [] }); }
+    }
+
+    if (action === 'explore') {
+      if (battles.has(user.id)) return interaction.update({ content: '⚔️ Нельзя исследовать во время боя!', embeds: [], components: [] });
+      const today = new Date().toDateString();
+      const maxE = p.profession === 'Следопыт' ? 4 : 3;
+      if (p.explore_date === today && (p.explore_used_today||0) >= maxE)
+        return interaction.update({ content: `🗺️ Ты уже исследовал **${maxE}** раза сегодня. Приходи завтра!`, embeds: [], components: [] });
+      if (p.explore_date !== today) { p.explore_used_today = 0; p.explore_date = today; }
+      const locK = p.location || 'Лес';
+      const evts = EXPLORE_EVENTS[locK] || EXPLORE_EVENTS['Лес'];
+      const totW = evts.reduce((s,e) => s+e.w, 0);
+      let rw = rand(1, totW), ev = evts[evts.length-1];
+      for (const e of evts) { rw -= e.w; if (rw <= 0) { ev = e; break; } }
+      const bMult = p.profession === 'Следопыт' ? 1.2 : 1;
+      const season = getSeasonalEvent();
+      let resultText = '', showShop = false;
+      switch (ev.type) {
+        case 'gold': { const g=Math.floor(rand(ev.val[0],ev.val[1])*bMult); p.gold+= season?.bonus==='gold'?Math.floor(g*season.mult):g; p.gold_earned=(p.gold_earned||0)+(season?.bonus==='gold'?Math.floor(g*season.mult):g); resultText=`+${season?.bonus==='gold'?Math.floor(g*season.mult):g}🪙`; break; }
+        case 'xp': { const x=Math.floor(rand(ev.val[0],ev.val[1])*bMult); p.xp+= season?.bonus==='xp'?Math.floor(x*season.mult):x; resultText=`+${season?.bonus==='xp'?Math.floor(x*season.mult):x}XP`; break; }
+        case 'hp': { const h=rand(ev.val[0],ev.val[1]); p.hp=Math.min(p.hp+h,p.max_hp); resultText=`+${h}❤️`; break; }
+        case 'mana': { const m=rand(ev.val[0],ev.val[1]); p.mana=Math.min(p.mana+m,p.max_mana); resultText=`+${m}💙`; break; }
+        case 'hpmana': { p.hp=Math.min(p.hp+ev.val[0],p.max_hp); p.mana=Math.min(p.mana+ev.val[1],p.max_mana); resultText=`+${ev.val[0]}❤️ +${ev.val[1]}💙`; break; }
+        case 'xpmana': { p.xp+=ev.val[0]; p.mana=Math.min(p.mana+ev.val[1],p.max_mana); resultText=`+${ev.val[0]}XP +${ev.val[1]}💙`; break; }
+        case 'goldxp': { const g2=Math.floor(ev.val[0]*bMult); p.gold+=g2; p.gold_earned=(p.gold_earned||0)+g2; p.xp+=ev.val[1]; resultText=`+${g2}🪙 +${ev.val[1]}XP`; break; }
+        case 'all': { const g3=Math.floor(ev.val[0]*bMult); p.gold+=g3; p.gold_earned=(p.gold_earned||0)+g3; p.xp+=ev.val[1]; p.hp=Math.min(p.hp+40,p.max_hp); resultText=`+${g3}🪙 +${ev.val[1]}XP +40❤️`; break; }
+        case 'dmg': { const d=rand(ev.val[0],ev.val[1]); p.hp=Math.max(1,p.hp-d); resultText=`-${d}❤️`; break; }
+        case 'drain': { p.hp=Math.max(1,p.hp-ev.val[0]); p.mana=Math.max(0,p.mana-ev.val[1]); resultText=`-${ev.val[0]}❤️ -${ev.val[1]}💙`; break; }
+        case 'atk_temp': { resultText='⚡ Атака усилена!'; break; }
+        case 'shop': { showShop=true; resultText='Выбери предмет со скидкой 50%!'; break; }
+      }
+      checkLevelUp(p);
+      p.explore_used_today = (p.explore_used_today||0) + 1;
+      const qr = db.prepare('SELECT * FROM quests WHERE player_id=?').get(user.id);
+      if (qr) { const qd=QUESTS_LIST.find(q=>q.name===qr.quest); if(qd?.type==='explore') db.prepare('UPDATE quests SET progress=progress+1 WHERE player_id=?').run(user.id); }
+      savePlayer(p);
+      await interaction.deferUpdate();
+      try {
+        const buf = await generateExploreCard(p, ev, resultText), att = new AttachmentBuilder(buf, { name: 'explore.png' });
+        const locC = parseInt((LOCATIONS[locK]?.color||'#1abc9c').replace('#',''), 16);
+        const emb = new EmbedBuilder().setColor(locC).setTitle(`🗺️ Исследование — ${locK} [${p.explore_used_today}/${maxE}]`).setImage('attachment://explore.png').setTimestamp();
+        if (season) emb.setFooter({ text: `${season.name}: ${season.desc}` });
+        const comps = [];
+        if (showShop) {
+          const di = SHOP_ITEMS.map(i => new ButtonBuilder().setCustomId(`explore_buy_${i.name}`).setLabel(`${i.emoji} ${i.name} — ${Math.floor(i.price*0.5)}🪙`).setStyle(ButtonStyle.Success));
+          comps.push(new ActionRowBuilder().addComponents(di.slice(0,4)));
+          if (di.length > 4) comps.push(new ActionRowBuilder().addComponents(di.slice(4)));
+        }
+        return interaction.editReply({ embeds: [emb], files: [att], components: comps });
+      } catch { return interaction.editReply({ content: `🗺️ **${ev.title}**: ${resultText}`, embeds: [], components: [] }); }
+    }
+
+    if (action === 'achievements') {
+      const unlocked = db.prepare('SELECT name FROM achievements WHERE player_id=?').all(user.id).map(r=>r.name);
+      await interaction.deferUpdate();
+      try {
+        const buf = await generateAchievementsCard(p, unlocked), att = new AttachmentBuilder(buf, { name: 'ach.png' });
+        return interaction.editReply({ embeds: [new EmbedBuilder().setColor(0xF1C40F).setTitle(`🏆 Достижения · ${unlocked.length}/${ACHIEVEMENTS_LIST.length}`).setImage('attachment://ach.png').setTimestamp()], files: [att], components: [] });
+      } catch { return interaction.editReply({ content: `Достижений: ${unlocked.length}/${ACHIEVEMENTS_LIST.length}`, embeds: [], components: [] }); }
+    }
+
+    if (action === 'stats') {
+      const unlocked = db.prepare('SELECT name FROM achievements WHERE player_id=?').all(user.id);
+      await interaction.deferUpdate();
+      try {
+        const buf = await generateStatsCard(p, unlocked.length), att = new AttachmentBuilder(buf, { name: 'stats.png' });
+        const clsC = parseInt((CLASSES[p.class]?.color||'#7289DA').replace('#',''), 16);
+        return interaction.editReply({ embeds: [new EmbedBuilder().setColor(clsC).setTitle(`📊 Статистика: ${p.name}`).setImage('attachment://stats.png').setTimestamp()], files: [att], components: [] });
+      } catch { return interaction.editReply({ content: `Побед: ${p.wins} | Поражений: ${p.losses} | Убито: ${p.kills_total||0}`, embeds: [], components: [] }); }
+    }
+
+    if (action === 'help') {
+      await interaction.deferUpdate();
+      try {
+        const buf = await generateHelpCard(), att = new AttachmentBuilder(buf, { name: 'help.png' });
+        return interaction.editReply({ embeds: [new EmbedBuilder().setColor(0x3498DB).setTitle('❓ Справка по командам').setImage('attachment://help.png').setTimestamp()], files: [att], components: [] });
+      } catch { return interaction.editReply({ content: '/fight /profile /shop /quest /daily /rest /achievements /explore /stats /menu', embeds: [], components: [] }); }
+    }
+
+    return;
   }
 
   // ── Обычный бой ──
