@@ -665,7 +665,7 @@ async function generateTopCard(players) {
 //  КАРТОЧКА ДОСТИЖЕНИЙ
 // ──────────────────────────────────────────────────────────────
 async function generateAchievementsCard(p, unlocked) {
-  const all=ACHIEVEMENTS_LIST, COLS=2, CW=200, CH=58, PAD=10;
+  const all=ACHIEVEMENTS_LIST, COLS=2, CW=200, CH=66, PAD=10;
   const ROWS=Math.ceil(all.length/COLS);
   const W=COLS*CW+(COLS+1)*PAD, H=54+ROWS*CH+(ROWS+1)*PAD+10;
   const canvas=createCanvas(W,H),ctx=canvas.getContext('2d');
@@ -679,9 +679,22 @@ async function generateAchievementsCard(p, unlocked) {
     const done=unlocked.includes(a.id);
     ctx.fillStyle=done?'#ffffff12':'#ffffff05'; roundRect(ctx,x,y,CW,CH,8); ctx.fill();
     ctx.strokeStyle=done?'#f1c40f50':'#444'; ctx.lineWidth=1; roundRect(ctx,x,y,CW,CH,8); ctx.stroke();
-    ctx.fillStyle=done?'#f1c40f':'#555'; ctx.font=`bold 18px sans-serif`; ctx.fillText(a.icon,x+10,y+26);
-    ctx.fillStyle=done?'#fff':'#555'; ctx.font=`bold 11px sans-serif`; ctx.fillText(a.name,x+36,y+20);
-    ctx.fillStyle=done?'#888':'#444'; ctx.font='10px sans-serif'; ctx.fillText(a.desc,x+36,y+36);
+    // Иконка
+    ctx.fillStyle=done?'#f1c40f':'#555'; ctx.font='bold 18px sans-serif'; ctx.fillText(a.icon,x+10,y+26);
+    // Название
+    ctx.fillStyle=done?'#fff':'#555'; ctx.font='bold 11px sans-serif'; ctx.fillText(a.name,x+36,y+20);
+    // Зачёркивание для выполненных
+    if (done) {
+      ctx.strokeStyle='#888'; ctx.lineWidth=1.2;
+      const tw=ctx.measureText(a.name).width;
+      ctx.beginPath(); ctx.moveTo(x+36,y+16); ctx.lineTo(x+36+tw,y+16); ctx.stroke();
+    }
+    // Описание
+    ctx.fillStyle=done?'#666':'#444'; ctx.font='10px sans-serif'; ctx.fillText(a.desc,x+36,y+34);
+    // Награда золотом
+    ctx.fillStyle=done?'#f1c40f':'#554400'; ctx.font='bold 11px sans-serif';
+    ctx.fillText(`+${a.gold||0} золота`,x+36,y+52);
+    // Галочка
     if (done) {
       ctx.fillStyle='#2ecc71'; ctx.beginPath();
       ctx.arc(x+CW-14,y+14,7,0,Math.PI*2); ctx.fill();

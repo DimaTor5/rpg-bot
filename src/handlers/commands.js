@@ -59,6 +59,15 @@ async function handleCmd(interaction) {
 
   // ── /start ──
   if (commandName==='start') {
+    // Если игрок уже существует — показать профиль, не сбрасывать прогресс
+    if (p.wins > 0 || p.level > 1) {
+      await interaction.deferReply({ ephemeral: true });
+      const cls2=CLASSES[p.class]||CLASSES['Воин'];
+      try {
+        const buf=await generateProfileCard(p), att=new AttachmentBuilder(buf,{name:'profile.png'});
+        return interaction.editReply({embeds:[new EmbedBuilder().setColor(cls2.color).setTitle(`${cls2.emoji}  Персонаж уже существует!`).setDescription(`**${user.username}**, у тебя уже есть персонаж **${p.class}** ${p.level} уровня.\n\nИспользуй **/profile** чтобы посмотреть его.`).setImage('attachment://profile.png').setTimestamp()],files:[att]});
+      } catch { return interaction.editReply({content:`У тебя уже есть персонаж **${p.class}** ${p.level} уровня! Используй /profile.`}); }
+    }
     const cls=interaction.options.getString('класс'), c=CLASSES[cls];
     Object.assign(p,{class:cls,max_hp:c.hp,hp:c.hp,attack:c.atk,defense:c.def,max_mana:c.mana,mana:c.mana,xp:0,level:1,gold:50});
     savePlayer(p);
@@ -189,10 +198,8 @@ async function handleCmd(interaction) {
       p.xp+=q.reward_xp; p.gold+=q.reward_gold; p.quests_done=(p.quests_done||0)+1;
       checkLevelUp(p); savePlayer(p);
       db.prepare('DELETE FROM quests WHERE player_id=?').run(user.id);
-      const newA=checkAchievements(p);
-      if (newA.length) {
-        for (const a of newA) try { db.prepare('INSERT INTO achievements (player_id,name) VALUES (?,?)').run(user.id,a.id); } catch {}
-      }
+      const {newOnes:newA,goldEarned:achGold,allDone}=checkAchievements(p);
+      if (achGold>0) savePlayer(p);
     }
     await interaction.deferReply({ ephemeral: isEphemeral??false });
     try {
@@ -215,7 +222,8 @@ async function handleCmd(interaction) {
     const gold=Math.floor(baseGold*dailyMult), xp=Math.floor(baseXp*(season?.bonus==='xp'?season.mult:1));
     p.gold+=gold; p.xp+=xp; p.last_daily=today; p.gold_earned=(p.gold_earned||0)+gold;
     const lvl=checkLevelUp(p); savePlayer(p);
-    const newA=checkAchievements(p);
+    const {newOnes:newA,goldEarned:achGold,allDone}=checkAchievements(p);
+    if (achGold>0) savePlayer(p);
     await interaction.deferReply({ ephemeral: isEphemeral??false });
     try {
       const buf=await generateDailyCard(p,gold,xp,lvl[0]||null), att=new AttachmentBuilder(buf,{name:'daily.png'});
@@ -357,7 +365,8 @@ async function handleCmd(interaction) {
     if (won) { p.gold+=gain; p.casino_wins=(p.casino_wins||0)+1; }
     else p.gold-=bet;
     savePlayer(p);
-    const newA=checkAchievements(p);
+    const {newOnes:newA,goldEarned:achGold,allDone}=checkAchievements(p);
+    if (achGold>0) savePlayer(p);
 
     await interaction.deferReply({ ephemeral: isEphemeral??false });
     try {

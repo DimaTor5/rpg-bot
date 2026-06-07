@@ -1,6 +1,6 @@
 'use strict';
 const db = require('./database');
-const { ACHIEVEMENTS_LIST, INVENTORY_LIMIT, XP_PER_LEVEL } = require('../data/constants');
+const { ACHIEVEMENTS_LIST, ALL_ACHIEVEMENTS_BONUS, INVENTORY_LIMIT, XP_PER_LEVEL } = require('../data/constants');
 
 const stmt = {
   getPlayer:       db.prepare('SELECT * FROM players WHERE id=?'),
@@ -89,12 +89,33 @@ function addWeeklyWin(playerId, goldGain) {
 function checkAchievements(p) {
   const unlocked = new Set(stmt.achGet.all(p.id).map(r => r.name));
   const newOnes = [];
+  let goldEarned = 0;
   for (const a of ACHIEVEMENTS_LIST) {
     if (!unlocked.has(a.id) && a.check(p)) {
-      try { stmt.achInsert.run(p.id, a.id); newOnes.push(a); } catch {}
+      try {
+        stmt.achInsert.run(p.id, a.id);
+        newOnes.push(a);
+        goldEarned += a.gold || 0;
+        unlocked.add(a.id);
+      } catch {}
     }
   }
-  return newOnes;
+  // Бонус за все 20 достижений
+  let allDone = false;
+  if (newOnes.length > 0 && unlocked.size >= ACHIEVEMENTS_LIST.length) {
+    const bonusId = 'all_achievements';
+    const alreadyGot = stmt.achGet.all(p.id).some(r => r.name === bonusId);
+    if (!alreadyGot) {
+      try { stmt.achInsert.run(p.id, bonusId); } catch {}
+      goldEarned += ALL_ACHIEVEMENTS_BONUS.gold;
+      allDone = true;
+    }
+  }
+  if (goldEarned > 0) {
+    p.gold = (p.gold || 0) + goldEarned;
+    p.gold_earned = (p.gold_earned || 0) + goldEarned;
+  }
+  return { newOnes, goldEarned, allDone };
 }
 
 function unlockAchievement(playerId, id) {

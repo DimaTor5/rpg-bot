@@ -300,27 +300,28 @@ const PETS = {
 };
 
 const ACHIEVEMENTS_LIST = [
-  { id:'first_blood',   name:'Первая кровь',      desc:'Одержи первую победу',       icon:'⚔️',  check: p => p.wins >= 1       },
-  { id:'fighter10',     name:'Опытный боец',       desc:'Одержи 10 побед',            icon:'🗡️',  check: p => p.wins >= 10      },
-  { id:'veteran',       name:'Ветеран',            desc:'Одержи 50 побед',            icon:'🏅',  check: p => p.wins >= 50      },
-  { id:'legend',        name:'Легенда',            desc:'Одержи 100 побед',           icon:'👑',  check: p => p.wins >= 100     },
-  { id:'lvl5',          name:'Крутой парень',      desc:'Достигни 5 уровня',          icon:'⭐',  check: p => p.level >= 5      },
-  { id:'lvl10',         name:'Герой',              desc:'Достигни 10 уровня',         icon:'🌟',  check: p => p.level >= 10     },
-  { id:'lvl20',         name:'Полубог',            desc:'Достигни 20 уровня',         icon:'💫',  check: p => p.level >= 20     },
-  { id:'gold500',       name:'Богач',              desc:'Накопи 500 золота',          icon:'💰',  check: p => p.gold >= 500     },
-  { id:'gold1000',      name:'Миллионер',          desc:'Накопи 1000 золота',         icon:'💎',  check: p => p.gold >= 1000    },
-  { id:'goblin10',      name:'Гроза гоблинов',     desc:'Убей 10 гоблинов',           icon:'👺',  check: p => (p.kills_goblin||0) >= 10  },
-  { id:'dragon1',       name:'Убийца дракона',     desc:'Убей дракона',               icon:'🐉',  check: p => (p.kills_dragon||0) >= 1   },
-  { id:'pvp1',          name:'Дуэлянт',            desc:'Выиграй PvP дуэль',          icon:'🤺',  check: p => (p.pvp_wins||0) >= 1  },
-  { id:'pvp5',          name:'Гладиатор',          desc:'Выиграй 5 PvP дуэлей',       icon:'🛡️',  check: p => (p.pvp_wins||0) >= 5  },
-  { id:'casino1',       name:'Удача в казино',     desc:'Выиграй в казино',           icon:'🎰',  check: p => (p.casino_wins||0) >= 1 },
-  { id:'casino5',       name:'Казино-мастер',      desc:'Выиграй 5 раз в казино',     icon:'🃏',  check: p => (p.casino_wins||0) >= 5 },
-  { id:'quest5',        name:'Квестомастер',       desc:'Выполни 5 квестов',          icon:'📜',  check: p => (p.quests_done||0) >= 5  },
-  { id:'allLoc',        name:'Путешественник',     desc:'Побеждай в каждой локации',  icon:'🗺️',  check: p => (p.kills_total||0) >= 15 },
-  { id:'survive',       name:'Выживший',           desc:'Выживи с HP < 10',           icon:'💀',  check: p => false /* спец. событие */ },
-  { id:'rich_kill',     name:'Мародёр',            desc:'Получи 130+ золота с боя',   icon:'💸',  check: p => false /* спец. событие */ },
-  { id:'collector',     name:'Коллекционер',       desc:'Имей 5 предметов в инвентаре',icon:'🎒', check: p => false /* спец. событие */ },
+  { id:'first_blood',   name:'Первая кровь',      desc:'Одержи первую победу',        icon:'⚔️',  gold:100,  check: p => p.wins >= 1       },
+  { id:'fighter10',     name:'Опытный боец',       desc:'Одержи 10 побед',             icon:'🗡️',  gold:200,  check: p => p.wins >= 10      },
+  { id:'veteran',       name:'Ветеран',            desc:'Одержи 50 побед',             icon:'🏅',  gold:400,  check: p => p.wins >= 50      },
+  { id:'legend',        name:'Легенда',            desc:'Одержи 100 побед',            icon:'👑',  gold:800,  check: p => p.wins >= 100     },
+  { id:'lvl5',          name:'Крутой парень',      desc:'Достигни 5 уровня',           icon:'⭐',  gold:150,  check: p => p.level >= 5      },
+  { id:'lvl10',         name:'Герой',              desc:'Достигни 10 уровня',          icon:'🌟',  gold:300,  check: p => p.level >= 10     },
+  { id:'lvl20',         name:'Полубог',            desc:'Достигни 20 уровня',          icon:'💫',  gold:600,  check: p => p.level >= 20     },
+  { id:'gold500',       name:'Богач',              desc:'Накопи 500 золота',           icon:'💰',  gold:200,  check: p => p.gold >= 500     },
+  { id:'gold1000',      name:'Миллионер',          desc:'Накопи 1000 золота',          icon:'💎',  gold:400,  check: p => p.gold >= 1000    },
+  { id:'goblin10',      name:'Гроза гоблинов',     desc:'Убей 10 гоблинов',            icon:'👺',  gold:250,  check: p => (p.kills_goblin||0) >= 10  },
+  { id:'dragon1',       name:'Убийца дракона',     desc:'Убей дракона',                icon:'🐉',  gold:500,  check: p => (p.kills_dragon||0) >= 1   },
+  { id:'pvp1',          name:'Дуэлянт',            desc:'Выиграй PvP дуэль',           icon:'🤺',  gold:200,  check: p => (p.pvp_wins||0) >= 1  },
+  { id:'pvp5',          name:'Гладиатор',          desc:'Выиграй 5 PvP дуэлей',        icon:'🛡️',  gold:500,  check: p => (p.pvp_wins||0) >= 5  },
+  { id:'casino1',       name:'Удача в казино',     desc:'Выиграй в казино',            icon:'🎰',  gold:150,  check: p => (p.casino_wins||0) >= 1 },
+  { id:'casino5',       name:'Казино-мастер',      desc:'Выиграй 5 раз в казино',      icon:'🃏',  gold:300,  check: p => (p.casino_wins||0) >= 5 },
+  { id:'quest5',        name:'Квестомастер',       desc:'Выполни 5 квестов',           icon:'📜',  gold:350,  check: p => (p.quests_done||0) >= 5  },
+  { id:'allLoc',        name:'Путешественник',     desc:'Побеждай в каждой локации',   icon:'🗺️',  gold:400,  check: p => (p.kills_total||0) >= 15 },
+  { id:'survive',       name:'Выживший',           desc:'Выживи с HP < 10',            icon:'💀',  gold:300,  check: p => false },
+  { id:'rich_kill',     name:'Мародёр',            desc:'Получи 130+ золота с боя',    icon:'💸',  gold:250,  check: p => false },
+  { id:'collector',     name:'Коллекционер',       desc:'Имей 5 предметов в инвентаре',icon:'🎒',  gold:200,  check: p => false },
 ];
+const ALL_ACHIEVEMENTS_BONUS = { gold: 3000, title: '🏆 Мастер Феникса' };
 
 const rand = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
 const XP_PER_LEVEL = lvl => lvl * 100;
@@ -328,7 +329,7 @@ const XP_PER_LEVEL = lvl => lvl * 100;
 module.exports = {
   CLASSES, RACES, LOCATIONS, MONSTERS, ABILITIES,
   SHOP_ITEMS, CARD_SHOP_ITEMS, QUESTS_LIST, RANDOM_EVENTS, EXPLORE_EVENTS,
-  PROFESSIONS, PETS, ACHIEVEMENTS_LIST, CARD_TIERS,
+  PROFESSIONS, PETS, ACHIEVEMENTS_LIST, ALL_ACHIEVEMENTS_BONUS, CARD_TIERS,
   INVENTORY_LIMIT, rand, XP_PER_LEVEL,
   getActiveTier, getCardBonuses, getCardTier, getSeasonalEvent,
 };

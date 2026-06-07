@@ -210,7 +210,7 @@ async function handleBtn(interaction) {
     const discountNote=bonuses.shopDiscount>0?` (скидка ${Math.round(bonuses.shopDiscount*100)}% по карте)`:'';
     if (p.gold<finalPrice) return interaction.reply({content:`💸 Нужно **${finalPrice}🪙**${discountNote}, у тебя **${p.gold}🪙**`,ephemeral:true});
     p.gold-=finalPrice; savePlayer(p); addItem(user.id,item.name);
-    checkAchievements(p);
+    const {goldEarned:ag1}=checkAchievements(p); if(ag1>0) savePlayer(p);
     return interaction.reply({content:`${item.emoji} Куплено **${item.name}** за **${finalPrice}🪙**${discountNote}! Используй **/use ${item.name}**`,ephemeral:true});
   }
 
@@ -298,7 +298,7 @@ async function handleBtn(interaction) {
       def.hp=1; att.pvp_wins=(att.pvp_wins||0)+1;
       const reward=rand(30,80); att.gold+=reward;
       savePlayer(att); savePlayer(def); pvpBattles.delete(bKey);
-      checkAchievements(att);
+      const {goldEarned:ag2}=checkAchievements(att); if(ag2>0) savePlayer(att);
       await interaction.update({embeds:[new EmbedBuilder().setColor(0x2ECC71).setTitle(`🏆 ${att.name} победил в дуэли!`).setDescription(log.map(l=>`> ${l}`).join('\n')+`\n\n💰 +${reward} золота за победу!`).setTimestamp()],components:[]});
       return;
     }
@@ -482,8 +482,11 @@ async function handleBtn(interaction) {
     if (qRow) db.prepare('UPDATE quests SET progress=progress+1 WHERE player_id=?').run(user.id);
     addWeeklyWin(user.id, gold);
     battles.delete(user.id); savePlayer(p);
-    const newA=checkAchievements(p);
-    const achMsgs=newA.map(a=>`🏆 **Достижение**: ${a.icon} **${a.name}**!`);
+    const {newOnes:newA,goldEarned:achGold,allDone}=checkAchievements(p);
+    if (achGold>0) savePlayer(p);
+    const achMsgs=newA.map(a=>`🏆 **Достижение**: ${a.icon} **${a.name}**! +${a.gold}🪙`);
+    if (achGold>0) achMsgs.push(`💰 Итого за достижения: **+${achGold}🪙**`);
+    if (allDone) achMsgs.push(`✨ **ВСЕ ДОСТИЖЕНИЯ ВЫПОЛНЕНЫ!** +3000🪙 · Титул: 🏆 Мастер Феникса`);
 
     // Случайное событие
     let event=null;
