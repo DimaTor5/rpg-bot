@@ -363,7 +363,7 @@ async function handleBtn(interaction) {
       try {
         const buf = await generateProfileCard(p), att = new AttachmentBuilder(buf, { name: 'profile.png' });
         const cls = CLASSES[p.class] || CLASSES['Воин'];
-        return interaction.editReply({ embeds: [new EmbedBuilder().setColor(parseInt(cls.color.replace('#',''),16)).setTitle(`${cls.emoji} ${p.name} · Ур.${p.level}`).setImage('attachment://profile.png').setTimestamp()], files: [att], components: [] });
+        return interaction.editReply({ embeds: [new EmbedBuilder().setColor(cls.color).setTitle(`${cls.emoji} ${p.name} · Ур.${p.level}`).setImage('attachment://profile.png').setTimestamp()], files: [att], components: [] });
       } catch { return interaction.editReply({ content: `${p.class} · Ур.${p.level} · ${p.gold}🪙`, embeds: [], components: [] }); }
     }
 
@@ -396,16 +396,21 @@ async function handleBtn(interaction) {
       }
       const quest = QUESTS_LIST.find(x => x.name === q.quest) || QUESTS_LIST[0];
       const done = q.progress >= q.goal;
+      const achQuestLines = [];
       if (done) {
         p.xp += q.reward_xp; p.gold += q.reward_gold; p.quests_done = (p.quests_done||0) + 1;
         checkLevelUp(p); savePlayer(p);
         db.prepare('DELETE FROM quests WHERE player_id=?').run(user.id);
-        const { goldEarned: achG } = checkAchievements(p); if (achG > 0) savePlayer(p);
+        const { newOnes: achNew, goldEarned: achG, allDone: achAll } = checkAchievements(p); if (achG > 0) savePlayer(p);
+        achQuestLines.push(...achNew.map(a => `🏆 ${a.icon} **${a.name}**! +${a.gold}🪙`));
+        if (achAll) achQuestLines.push('✨ **ВСЕ ДОСТИЖЕНИЯ!** +3000🪙');
       }
       await interaction.deferUpdate();
       try {
         const buf = await generateQuestCard(q, quest, done), att = new AttachmentBuilder(buf, { name: 'quest.png' });
-        return interaction.editReply({ embeds: [new EmbedBuilder().setColor(done?0xF1C40F:0x1ABC9C).setTitle(done?'✅ Квест выполнен!':'📜 Активный квест').setImage('attachment://quest.png').setTimestamp()], files: [att], components: [] });
+        const emb = new EmbedBuilder().setColor(done?0xF1C40F:0x1ABC9C).setTitle(done?'✅ Квест выполнен!':'📜 Активный квест').setImage('attachment://quest.png').setTimestamp();
+        if (achQuestLines.length) emb.setDescription(achQuestLines.join('\n'));
+        return interaction.editReply({ embeds: [emb], files: [att], components: [] });
       } catch { return interaction.editReply({ content: done?`✅ Квест выполнен! +${q.reward_xp}XP +${q.reward_gold}🪙`:`📜 **${q.quest}** — ${q.progress}/${q.goal}`, embeds: [], components: [] }); }
     }
 
@@ -421,12 +426,16 @@ async function handleBtn(interaction) {
       const gold = Math.floor(baseGold * dailyMult), xp = Math.floor(baseXp * (season?.bonus==='xp' ? season.mult : 1));
       p.gold += gold; p.xp += xp; p.last_daily = today; p.gold_earned = (p.gold_earned||0) + gold;
       const lvl = checkLevelUp(p); savePlayer(p);
-      const { goldEarned: achG } = checkAchievements(p); if (achG > 0) savePlayer(p);
+      const { newOnes: achNew, goldEarned: achG, allDone: achAll } = checkAchievements(p); if (achG > 0) savePlayer(p);
+      const achLines = achNew.map(a => `🏆 ${a.icon} **${a.name}**! +${a.gold}🪙`);
+      if (achAll) achLines.push('✨ **ВСЕ ДОСТИЖЕНИЯ!** +3000🪙');
       await interaction.deferUpdate();
       try {
         const buf = await generateDailyCard(p, gold, xp, lvl[0]||null), att = new AttachmentBuilder(buf, { name: 'daily.png' });
-        return interaction.editReply({ embeds: [new EmbedBuilder().setColor(0xF1C40F).setTitle('🎁 Ежедневная награда!').setImage('attachment://daily.png').setTimestamp()], files: [att], components: [] });
-      } catch { return interaction.editReply({ content: `🎁 +${gold}🪙 +${xp}XP!`, embeds: [], components: [] }); }
+        const emb = new EmbedBuilder().setColor(0xF1C40F).setTitle('🎁 Ежедневная награда!').setImage('attachment://daily.png').setTimestamp();
+        if (achLines.length) emb.setDescription(achLines.join('\n'));
+        return interaction.editReply({ embeds: [emb], files: [att], components: [] });
+      } catch { return interaction.editReply({ content: `🎁 +${gold}🪙 +${xp}XP!${achLines.length?' '+achLines.join(' '):''}`, embeds: [], components: [] }); }
     }
 
     if (action === 'explore') {
@@ -458,7 +467,9 @@ async function handleBtn(interaction) {
         case 'atk_temp': { resultText='⚡ Атака усилена!'; break; }
         case 'shop': { showShop=true; resultText='Выбери предмет со скидкой 50%!'; break; }
       }
+      const hpAfterEvent = p.hp;
       checkLevelUp(p);
+      p.hp = Math.min(hpAfterEvent, p.max_hp); // сохраняем урон/лечение от события, level-up не сбрасывает HP
       p.explore_used_today = (p.explore_used_today||0) + 1;
       const qr = db.prepare('SELECT * FROM quests WHERE player_id=?').get(user.id);
       if (qr) { const qd=QUESTS_LIST.find(q=>q.name===qr.quest); if(qd?.type==='explore') db.prepare('UPDATE quests SET progress=progress+1 WHERE player_id=?').run(user.id); }
@@ -493,7 +504,7 @@ async function handleBtn(interaction) {
       await interaction.deferUpdate();
       try {
         const buf = await generateStatsCard(p, unlocked.length), att = new AttachmentBuilder(buf, { name: 'stats.png' });
-        const clsC = parseInt((CLASSES[p.class]?.color||'#7289DA').replace('#',''), 16);
+        const clsC = CLASSES[p.class]?.color || 0x7289DA;
         return interaction.editReply({ embeds: [new EmbedBuilder().setColor(clsC).setTitle(`📊 Статистика: ${p.name}`).setImage('attachment://stats.png').setTimestamp()], files: [att], components: [] });
       } catch { return interaction.editReply({ content: `Побед: ${p.wins} | Поражений: ${p.losses} | Убито: ${p.kills_total||0}`, embeds: [], components: [] }); }
     }

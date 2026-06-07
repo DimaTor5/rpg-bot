@@ -54,6 +54,7 @@ const commands = [
   new SlashCommandBuilder().setName('card').setDescription('Твоя банковская карта — баланс и тир'),
   new SlashCommandBuilder().setName('deposit').setDescription('Положить золото на карту').addIntegerOption(o=>o.setName('сумма').setDescription('Сколько золота положить').setRequired(true).setMinValue(1)),
   new SlashCommandBuilder().setName('withdraw').setDescription('Снять золото с карты').addIntegerOption(o=>o.setName('сумма').setDescription('Сколько снять').setRequired(true).setMinValue(1)),
+  new SlashCommandBuilder().setName('menu').setDescription('Главное меню — быстрый доступ ко всем командам'),
 ].map(c => c.toJSON());
 
 // ══════════════════════════════════════════════════════════════
