@@ -118,6 +118,14 @@ function checkAchievements(p) {
   return { newOnes, goldEarned, allDone };
 }
 
+function takeSnapshot(p) {
+  const today = new Date().toISOString().slice(0, 10);
+  try {
+    db.prepare('INSERT OR IGNORE INTO player_snapshots (player_id,snapshot_date,name,level,attack,defense,max_hp,gold,card_gold,wins,losses) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
+      .run(p.id, today, p.name, p.level, p.attack, p.defense, p.max_hp, p.gold, p.card_gold||0, p.wins, p.losses);
+  } catch {}
+}
+
 function unlockAchievement(playerId, id) {
   const a = ACHIEVEMENTS_LIST.find(x => x.id === id); if (!a) return null;
   try { stmt.achInsert.run(playerId, id); return a; } catch { return null; }
@@ -139,4 +147,5 @@ module.exports = {
   addWeeklyWin, getWeek,
   checkAchievements, unlockAchievement,
   getUpgradeLevel, setUpgradeLevel,
+  takeSnapshot,
 };

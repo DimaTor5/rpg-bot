@@ -72,5 +72,11 @@ try { db.exec(`ALTER TABLE players ADD COLUMN profession TEXT DEFAULT ''`); } ca
 try { db.exec(`ALTER TABLE players ADD COLUMN explore_used_today INTEGER DEFAULT 0`); } catch {}
 try { db.exec(`ALTER TABLE players ADD COLUMN explore_date TEXT DEFAULT ''`); } catch {}
 try { db.exec(`CREATE TABLE IF NOT EXISTS gear_upgrades (player_id TEXT, item TEXT, level INTEGER DEFAULT 1, PRIMARY KEY(player_id,item))`); } catch {}
+try { db.exec(`CREATE TABLE IF NOT EXISTS player_snapshots (
+  player_id TEXT, snapshot_date TEXT,
+  name TEXT, level INTEGER, attack INTEGER, defense INTEGER,
+  max_hp INTEGER, gold INTEGER, card_gold INTEGER, wins INTEGER, losses INTEGER,
+  PRIMARY KEY(player_id, snapshot_date)
+)`); } catch {}
 
 module.exports = db;

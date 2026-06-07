@@ -11,7 +11,7 @@ const {
 const {
   db, getPlayer, savePlayer, checkLevelUp, getInventory, addItem, removeItem, useItem,
   addWeeklyWin, getWeek, checkAchievements, unlockAchievement,
-  getUpgradeLevel, setUpgradeLevel,
+  getUpgradeLevel, setUpgradeLevel, takeSnapshot,
 } = require('../db/queries');
 const {
   generateBankCard, generateProfileCard, generateBattleCard, generateResultCard,
@@ -55,7 +55,13 @@ function battleEmbed(p, battle, log=[]) {
 async function handleCmd(interaction) {
   const { commandName, user } = interaction;
   const p = getPlayer(user.id, user.username);
+  takeSnapshot(p);
   const isEphemeral = EPHEMERAL_CMDS.has(commandName);
+
+  // Подсказка новым игрокам
+  if (commandName !== 'start' && commandName !== 'help' && p.wins === 0 && p.level === 1 && p.gold === 50) {
+    return interaction.reply({ content: '👋 **Привет, искатель приключений!**\nСначала выбери свой класс через **/start** — это займёт 5 секунд!\n\n⚔️ Воин · 🧙 Маг · 🏹 Лучник · 🛡️ Паладин', ephemeral: true });
+  }
 
   // ── /start ──
   if (commandName==='start') {
@@ -699,6 +705,32 @@ async function handleCmd(interaction) {
       .setFooter({text:'Предложение действует 60 секунд'})
       .setTimestamp()
     ],components:[row]});
+  }
+
+  // ── /menu ──
+  if (commandName==='menu') {
+    const cls=CLASSES[p.class]||CLASSES['Воин'];
+    const rows=[
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('menu_fight').setLabel('⚔️ Бой').setStyle(ButtonStyle.Danger),
+        new ButtonBuilder().setCustomId('menu_profile').setLabel('👤 Профиль').setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId('menu_shop').setLabel('🏪 Магазин').setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId('menu_inventory').setLabel('🎒 Инвентарь').setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId('menu_quest').setLabel('📜 Квест').setStyle(ButtonStyle.Primary),
+      ),
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('menu_daily').setLabel('🎁 Ежедневная').setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId('menu_explore').setLabel('🗺️ Исследовать').setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId('menu_achievements').setLabel('🏆 Достижения').setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId('menu_stats').setLabel('📊 Статистика').setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId('menu_help').setLabel('❓ Помощь').setStyle(ButtonStyle.Secondary),
+      ),
+    ];
+    const embed=new EmbedBuilder().setColor(cls.color)
+      .setTitle(`${cls.emoji}  ${p.name} · Ур.${p.level}`)
+      .setDescription(`💰 \`${p.gold}\`🪙  •  ❤️ \`${p.hp}/${p.max_hp}\`  •  📍 ${p.location||'Лес'}\n\nВыбери действие:`)
+      .setFooter({text:'Феникс RPG'}).setTimestamp();
+    return interaction.reply({embeds:[embed], components:rows, ephemeral:true});
   }
 
   // ── /help ──
